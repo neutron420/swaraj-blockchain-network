@@ -1,0 +1,31 @@
+{
+  "name": "grievance-blockchain-worker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "worker": "ts-node src/worker.ts",
+    "queue": "ts-node src/taskQueue.ts",
+    "node": "hardhat node"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ioredis": "^5.8.2",
+    "uuid": "^13.0.0",
+    "web3": "^4.16.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@types/node": "^24.10.1",
+    "@types/uuid": "^10.0.0",
+    "hardhat": "^2.26.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "type": "module"
+}
