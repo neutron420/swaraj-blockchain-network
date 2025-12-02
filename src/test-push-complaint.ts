@@ -9,11 +9,7 @@ const redis = new Redis({
   port: parseInt(process.env.REDIS_PORT || '6379'),
   password: process.env.REDIS_PASSWORD || undefined,
 });
-
-// MATCH THIS WITH YOUR .ENV FILE
 const QUEUE_NAME = process.env.QUEUE_NAME || 'blockchain_tasks';
-
-// --- 10 DEMO COMPLAINTS ---
 const demoComplaints = [
   {
     id: uuidv4(),
@@ -151,18 +147,18 @@ const demoComplaints = [
  * Push all demo complaints
  */
 async function pushDemoComplaints() {
-  console.log('🚀 Pushing 10 demo complaints to Redis queue...\n');
+  console.log(' Pushing 10 demo complaints to Redis queue...\n');
   
   for (const task of demoComplaints) {
     const message = JSON.stringify(task);
     await redis.rpush(QUEUE_NAME, message);
-    console.log(`✅ Pushed: ${task.data.complaintId} [${task.data.category}]`);
+    console.log(` Pushed: ${task.data.complaintId} [${task.data.category}]`);
     // Small delay to simulate real-time arrival
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   
   const len = await redis.llen(QUEUE_NAME);
-  console.log(`\n📊 Done! Queue length is now: ${len}`);
+  console.log(`\n Done! Queue length is now: ${len}`);
 }
 
 /**
@@ -170,8 +166,8 @@ async function pushDemoComplaints() {
  */
 async function viewQueue() {
   const len = await redis.llen(QUEUE_NAME);
-  console.log(`\n📮 Queue: ${QUEUE_NAME}`);
-  console.log(`📊 Current Length: ${len}`);
+  console.log(`\n Queue: ${QUEUE_NAME}`);
+  console.log(` Current Length: ${len}`);
 
   if (len > 0) {
     const items = await redis.lrange(QUEUE_NAME, 0, -1);
@@ -190,7 +186,7 @@ async function viewQueue() {
  */
 async function clearQueue() {
   await redis.del(QUEUE_NAME);
-  console.log(`🗑️  Cleared queue: ${QUEUE_NAME}`);
+  console.log(`  Cleared queue: ${QUEUE_NAME}`);
 }
 
 // --- MAIN CLI HANDLER ---
@@ -210,7 +206,7 @@ async function main() {
         await clearQueue();
         break;
       default:
-        console.log("\n⚠️  Usage:");
+        console.log("\n  Usage:");
         console.log("   npx ts-node src/test-push-complaint.ts push   (Push 10 demo tasks)");
         console.log("   npx ts-node src/test-push-complaint.ts view   (See pending tasks)");
         console.log("   npx ts-node src/test-push-complaint.ts clear  (Delete all tasks)");
