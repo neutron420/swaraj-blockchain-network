@@ -15,8 +15,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^17.2.3",
     "ioredis": "^5.8.2",
-    "uuid": "^13.0.0"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
@@ -26,5 +27,4 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
-
 }
