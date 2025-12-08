@@ -171,9 +171,10 @@ class BlockchainWorker {
     console.log(`User JSON uploaded to IPFS → CID: ${cid}`);
 
     const emailHash = ethers.keccak256(ethers.toUtf8Bytes(data.email));
-    const aadhaarHash = ethers.keccak256(
-      ethers.toUtf8Bytes(data.aadhaarId)
-    );
+    // Use placeholder if aadhaarId is missing
+    const aadhaarValue = data.aadhaarId || "AADHAAR_NOT_PROVIDED";
+    const aadhaarHash = ethers.keccak256(ethers.toUtf8Bytes(aadhaarValue));
+    
     const locHash = ethers.keccak256(
       ethers.toUtf8Bytes(
         `${data.location.pin}|${data.location.district}|${data.location.city}|${data.location.state}|${data.location.municipal}`
@@ -204,6 +205,17 @@ class BlockchainWorker {
 
     const data: ComplaintQueueData = JSON.parse(raw);
     const id = data.id || `COMP-${uuidv4()}`;
+
+    // Validate required fields
+    if (!data.description || !data.userId || !data.categoryId || !data.location) {
+      console.error(`❌ Skipping invalid complaint ${id} - missing required fields:`, {
+        hasDescription: !!data.description,
+        hasUserId: !!data.userId,
+        hasCategoryId: !!data.categoryId,
+        hasLocation: !!data.location
+      });
+      return;
+    }
 
     try {
       await this.registerComplaint(id, data);
