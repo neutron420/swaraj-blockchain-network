@@ -1,27 +1,73 @@
 import * as dotenv from "dotenv";
-dotenv.config(); // <--- THIS MUST BE AT THE TOP
+dotenv.config();
 
 import { ethers } from "ethers";
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
-// Import the artifact
-import GrievanceContractArtifact from "../artifacts/contracts/GrievanceContract.sol/GrievanceContract.json";
+import axios from "axios";
+import FormData from "form-data";
 
-interface BlockchainTask {
+import GrievanceContractArtifact from "../artifacts/contracts/GrievanceContract.sol/GrievanceContractOptimized.json";
+
+const Q_USERS = "user:registration:queue";
+const Q_COMPLAINTS = "complaint:registration:queue";
+
+const URGENCY_MAP: Record<string, number> = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3,
+  CRITICAL: 4,
+};
+
+const STATUS_MAP: Record<string, number> = {
+  REGISTERED: 1,
+  UNDER_PROCESSING: 2,
+  FORWARDED: 3,
+  ON_HOLD: 4,
+  COMPLETED: 5,
+  REJECTED: 6,
+  ESCALATED_TO_MUNICIPAL_LEVEL: 7,
+  ESCALATED_TO_STATE_LEVEL: 8,
+  DELETED: 9,
+};
+
+interface UserQueueData {
   id: string;
-  type: "REGISTER_COMPLAINT" | "UPDATE_STATUS" | "ASSIGN_COMPLAINT" | "RESOLVE_COMPLAINT";
-  data: any;
+  email: string;
+  phoneNumber?: string;
+  name: string;
+  aadhaarId: string;
+  dateOfCreation: string;
+  location: {
+    pin: string;
+    district: string;
+    city: string;
+    locality?: string;
+    municipal: string;
+    state: string;
+  };
   retryCount?: number;
 }
 
-interface ComplaintData {
-  complaintId: string;
-  category: string;
-  subcategory: string;
-  urgency: string;
-  descriptionHash: string;
-  attachmentHash: string;
-  submittedBy: string;
+interface ComplaintQueueData {
+  id?: string;
+  categoryId: string;
+  subCategory: string;
+  description: string;
+  urgency?: string;
+  attachmentUrl?: string;
+  assignedDepartment: string;
+  isPublic: boolean;
+  location: {
+    pin: string;
+    district: string;
+    city: string;
+    locality?: string;
+    state: string;
+  };
+  userId: string;
+  submissionDate: string;
+  retryCount?: number;
 }
 
 class BlockchainWorker {
@@ -29,50 +75,36 @@ class BlockchainWorker {
   private provider: ethers.JsonRpcProvider;
   private wallet: ethers.Wallet;
   private contract: ethers.Contract;
-  private queueName: string;
   private pollInterval: number;
-  private isRunning: boolean = false;
+  private isRunning = false;
 
   constructor() {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || "localhost",
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-      password: process.env.REDIS_PASSWORD || undefined,
-    });
+    this.redis = process.env.REDIS_URL
+      ? new Redis(process.env.REDIS_URL)
+      : new Redis();
 
-    this.provider = new ethers.JsonRpcProvider(
-      process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545"
-    );
+    this.provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
+    this.wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, this.provider);
 
-    this.wallet = new ethers.Wallet(
-      process.env.PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-      this.provider
-    );
-
-    // Use the ABI from the imported artifact
     this.contract = new ethers.Contract(
-      process.env.CONTRACT_ADDRESS || "",
+      process.env.CONTRACT_ADDRESS!,
       GrievanceContractArtifact.abi,
       this.wallet
     );
 
-    this.queueName = process.env.QUEUE_NAME || "blockchain_tasks";
     this.pollInterval = parseInt(process.env.WORKER_POLL_INTERVAL || "5000");
 
-    console.log(" Blockchain Worker initialized");
-    console.log(` Connected to: ${process.env.BLOCKCHAIN_RPC_URL}`);
-    console.log(` Contract: ${process.env.CONTRACT_ADDRESS}`);
+    console.log("Worker initialized with Pinata support");
   }
 
   async start() {
     this.isRunning = true;
-    console.log(" Worker started. Listening for tasks...");
-
     while (this.isRunning) {
       try {
-        await this.processNextTask();
-      } catch (error) {
-        console.error(" Error in worker loop:", error);
+        await this.processUserQueue();
+        await this.processComplaintQueue();
+      } catch (e) {
+        console.error("Worker loop error:", e);
       }
       await this.sleep(this.pollInterval);
     }
@@ -81,115 +113,160 @@ class BlockchainWorker {
   async stop() {
     this.isRunning = false;
     await this.redis.quit();
-    console.log(" Worker stopped");
   }
 
-  private async processNextTask() {
-    const result = await this.redis.blpop(this.queueName, 1);
-    if (!result) return;
+  /** UPLOAD JSON TO PINATA */
+  private async uploadToPinata(json: any): Promise<string> {
+    try {
+      const form = new FormData();
+      form.append("file", Buffer.from(JSON.stringify(json)), {
+        filename: "data.json",
+      });
 
-    const [, taskJson] = result;
-    const task: BlockchainTask = JSON.parse(taskJson);
+      const res = await axios.post(
+        "https://api.pinata.cloud/pinning/pinFileToIPFS",
+        form,
+        {
+          maxBodyLength: Infinity,
+          headers: {
+            Authorization: `Bearer ${process.env.PINATA_JWT}`,
+            ...form.getHeaders(),
+          },
+        }
+      );
 
-    console.log(` Processing task: ${task.type} (ID: ${task.id})`);
+      return res.data.IpfsHash;
+    } catch (err: any) {
+      console.error("Pinata upload failed:", err.response?.data || err);
+      throw err;
+    }
+  }
+
+  /** ========== USER REGISTRATION ========== */
+  private async processUserQueue() {
+    const raw = await this.redis.lpop(Q_USERS);
+    if (!raw) return;
+
+    const data: UserQueueData = JSON.parse(raw);
 
     try {
-      await this.executeTask(task);
-      console.log(`Task completed: ${task.id}`);
-
-      await this.redis.setex(
-        `task_result:${task.id}`,
-        3600,
-        JSON.stringify({ status: "success", timestamp: Date.now() })
-      );
-    } catch (error: any) {
-      console.error(` Task failed: ${task.id}`, error.message);
-
-      const retryCount = task.retryCount || 0;
-      if (retryCount < 3) {
-        task.retryCount = retryCount + 1;
-        await this.redis.rpush(this.queueName, JSON.stringify(task));
-        console.log(` Task re-queued for retry (${task.retryCount}/3)`);
-      } else {
-        await this.redis.setex(
-          `task_result:${task.id}`,
-          3600,
-          JSON.stringify({ status: "failed", error: error.message, timestamp: Date.now() })
-        );
-      }
+      await this.registerUser(data);
+      console.log("User registered:", data.id);
+    } catch (err: any) {
+      console.error("User registration failed:", err.message);
     }
   }
 
-  private async executeTask(task: BlockchainTask) {
-    switch (task.type) {
-      case "REGISTER_COMPLAINT":
-        await this.registerComplaint(task.data);
-        break;
-      case "UPDATE_STATUS":
-        await this.updateStatus(task.data);
-        break;
-      case "ASSIGN_COMPLAINT":
-        await this.assignComplaint(task.data);
-        break;
-      case "RESOLVE_COMPLAINT":
-        await this.resolveComplaint(task.data);
-        break;
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
-    }
-  }
+  private async registerUser(data: UserQueueData) {
+    const jsonData = {
+      ...data,
+      role: "CITIZEN",
+    };
 
-  private async registerComplaint(data: ComplaintData) {
-    const tx = await this.contract.registerComplaint(
-      data.complaintId,
-      data.category,
-      data.subcategory,
-      data.urgency,
-      data.descriptionHash,
-      data.attachmentHash,
-      data.submittedBy
+    let cid = await this.uploadToPinata(jsonData);
+
+    await this.redis.set(`user:json:${data.id}`, JSON.stringify(jsonData));
+    await this.redis.set(`user:cid:${data.id}`, cid);
+
+    console.log(`User JSON uploaded to IPFS → CID: ${cid}`);
+
+    const emailHash = ethers.keccak256(ethers.toUtf8Bytes(data.email));
+    const aadhaarHash = ethers.keccak256(
+      ethers.toUtf8Bytes(data.aadhaarId)
     );
-    console.log(` Transaction sent: ${tx.hash}`);
+    const locHash = ethers.keccak256(
+      ethers.toUtf8Bytes(
+        `${data.location.pin}|${data.location.district}|${data.location.city}|${data.location.state}|${data.location.municipal}`
+      )
+    );
+
+    const tx = await this.contract.registerUser(
+      data.id,
+      data.name,
+      "CITIZEN",
+      emailHash,
+      aadhaarHash,
+      locHash,
+      data.location.pin,
+      data.location.district,
+      data.location.city,
+      data.location.state,
+      data.location.municipal
+    );
+
+    await tx.wait();
+  }
+
+  /** ========== COMPLAINT REGISTRATION ========== */
+  private async processComplaintQueue() {
+    const raw = await this.redis.lpop(Q_COMPLAINTS);
+    if (!raw) return;
+
+    const data: ComplaintQueueData = JSON.parse(raw);
+    const id = data.id || `COMP-${uuidv4()}`;
+
+    try {
+      await this.registerComplaint(id, data);
+      console.log("Complaint registered:", id);
+    } catch (err: any) {
+      console.error("Complaint failed:", err.message);
+    }
+  }
+
+  private async registerComplaint(id: string, data: ComplaintQueueData) {
+    const jsonData = {
+      complaintId: id,
+      ...data,
+    };
+
+    let cid = await this.uploadToPinata(jsonData);
+
+    await this.redis.set(`complaint:json:${id}`, JSON.stringify(jsonData));
+    await this.redis.set(`complaint:cid:${id}`, cid);
+
+    console.log(`Complaint JSON uploaded to IPFS → CID: ${cid}`);
+
+    const descHash = ethers.keccak256(ethers.toUtf8Bytes(data.description));
+    const attachmentHash = data.attachmentUrl
+      ? ethers.keccak256(ethers.toUtf8Bytes(data.attachmentUrl))
+      : ethers.ZeroHash;
+
+    const { pin, district, city, locality, state } = data.location;
+
+    const locHash = ethers.keccak256(
+      ethers.toUtf8Bytes(`${pin}|${district}|${city}|${locality}|${state}`)
+    );
+
+    const urgency = URGENCY_MAP[data.urgency || "MEDIUM"];
+
+    const fn = this.contract.getFunction("registerComplaint");
+    const tx = await fn(
+      id,
+      data.userId,
+      data.categoryId,
+      data.subCategory,
+      data.assignedDepartment,
+      urgency,
+      descHash,
+      attachmentHash,
+      locHash,
+      data.isPublic,
+      pin,
+      district,
+      city,
+      locality,
+      state
+    );
+
     const receipt = await tx.wait();
-    console.log(` Transaction confirmed in block: ${receipt.blockNumber}`);
+    console.log(`Complaint registered: ${id} → Block ${receipt.blockNumber}`);
     return receipt;
   }
 
-  private async updateStatus(data: { complaintId: string; status: string }) {
-    const tx = await this.contract.updateStatus(data.complaintId, data.status);
-    const receipt = await tx.wait();
-    console.log(` Status updated: ${data.complaintId} -> ${data.status}`);
-    return receipt;
-  }
-
-  private async assignComplaint(data: { complaintId: string; assignedTo: string }) {
-    const tx = await this.contract.assignComplaint(data.complaintId, data.assignedTo);
-    const receipt = await tx.wait();
-    console.log(`Complaint assigned: ${data.complaintId} -> ${data.assignedTo}`);
-    return receipt;
-  }
-
-  private async resolveComplaint(data: { complaintId: string; resolutionDate: string }) {
-    const tx = await this.contract.resolveComplaint(data.complaintId, data.resolutionDate);
-    const receipt = await tx.wait();
-    console.log(` Complaint resolved: ${data.complaintId}`);
-    return receipt;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number) {
+    return new Promise((res) => setTimeout(res, ms));
   }
 }
 
 const worker = new BlockchainWorker();
-
-process.on("SIGINT", async () => {
-  console.log("\n  Shutting down gracefully...");
-  await worker.stop();
-  process.exit(0);
-});
-
-worker.start().catch((error) => {
-  console.error(" Fatal error:", error);
-  process.exit(1);
-});
+worker.start();

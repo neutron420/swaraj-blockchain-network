@@ -2,49 +2,108 @@
 pragma solidity ^0.8.0;
 
 /**
- * @title GrievanceContract
- * @dev Stores immutable complaint records on Hyperledger Besu
- * Only stores audit trail data, not full complaint details
+ * @title GrievanceContractOptimized
+ * @dev Gas-optimized version with reduced storage
+ * Stores only critical data on-chain, full details in events
  */
-contract GrievanceContract {
+contract GrievanceContractOptimized {
     
-    // Complaint structure stored on-chain
-    struct Complaint {
-        string complaintId;           // From PostgreSQL
-        string category;              // Standardized by AI
-        string subcategory;           // Standardized by AI
-        string urgency;               // AI predicted: low/medium/high/critical
-        string status;                // open/in_progress/resolved/closed
-        string descriptionHash;       // SHA-256 hash of description
-        string attachmentHash;        // SHA-256 hash of attachment
-        address submittedBy;          // Citizen's wallet address
-        uint256 timestamp;            // Submission timestamp
-        uint256 lastUpdated;          // Last status update
-        string assignedTo;            // Department/officer ID
-        string resolutionDate;        // When resolved (empty if pending)
+    // Location structure for users and complaints
+    struct Location {
+        string pin;             // PIN code
+        string district;        // District name
+        string city;            // City name
+        string state;           // State name
+        string municipal;       // Municipal area (for users)
+        string locality;        // Locality name
     }
     
-    // Mapping: complaintId => Complaint
-    mapping(string => Complaint) public complaints;
+    // Simplified User structure
+    struct User {
+        bytes32 emailHash;      // 32 bytes
+        bytes32 aadhaarHash;    // 32 bytes
+        bytes32 locationHash;   // 32 bytes - hash of location for verification
+        uint64 registrationDate; // 8 bytes
+        bool isActive;          // 1 byte
+    }
     
-    // Array to track all complaint IDs
-    string[] public complaintIds;
+    // Simplified Complaint structure
+    struct Complaint {
+        bytes32 complainantIdHash;  // Hash of complainant ID
+        bytes32 descriptionHash;    // Hash of description
+        bytes32 attachmentHash;     // Hash of attachment
+        bytes32 locationHash;       // Hash of location for verification
+        uint64 submissionDate;      // 8 bytes
+        uint64 lastUpdated;         // 8 bytes
+        uint32 upvoteCount;         // 4 bytes
+        uint8 urgencyLevel;         // 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL
+        uint8 statusCode;           // 1=REGISTERED, 2=PROCESSING, 3=COMPLETED, etc.
+        bool isPublic;              // 1 byte
+    }
     
-    // Mapping to check if complaint exists
-    mapping(string => bool) public complaintExists;
+    // Mappings - using bytes32 for gas efficiency
+    mapping(bytes32 => User) public users;
+    mapping(bytes32 => Complaint) public complaints;
+    mapping(bytes32 => bool) public userExists;
+    mapping(bytes32 => bool) public complaintExists;
     
-    // Events for tracking
+    // Counters
+    uint256 public totalUsers;
+    uint256 public totalComplaints;
+    uint256 public totalAuditLogs;
+    
+    // Events store full data (cheaper than storage)
+    event UserRegistered(
+        string indexed userId,
+        string name,
+        string role,
+        bytes32 emailHash,
+        bytes32 aadhaarHash,
+        bytes32 locationHash,
+        uint256 timestamp
+    );
+    
+    // Separate event for full location details (gas efficient - stored in logs)
+    event UserLocationStored(
+        string indexed userId,
+        string pin,
+        string district,
+        string city,
+        string state,
+        string municipal,
+        uint256 timestamp
+    );
+    
     event ComplaintRegistered(
         string indexed complaintId,
-        string category,
-        string urgency,
-        address submittedBy,
+        string indexed complainantId,
+        string categoryId,
+        string subCategory,
+        string department,
+        uint8 urgency,
+        bytes32 descriptionHash,
+        bytes32 attachmentHash,
+        bytes32 locationHash,
+        bool isPublic,
+        uint256 timestamp
+    );
+    
+    // Separate event for complaint location details
+    event ComplaintLocationStored(
+        string indexed complaintId,
+        string pin,
+        string district,
+        string city,
+        string locality,
+        string state,
         uint256 timestamp
     );
     
     event ComplaintStatusUpdated(
         string indexed complaintId,
-        string newStatus,
+        uint8 oldStatus,
+        uint8 newStatus,
+        string statusName,
         uint256 timestamp
     );
     
@@ -56,49 +115,139 @@ contract GrievanceContract {
     
     event ComplaintResolved(
         string indexed complaintId,
-        string resolutionDate,
+        uint256 timestamp
+    );
+    
+    event AuditLogCreated(
+        string indexed logId,
+        string action,
+        string userId,
+        string complaintId,
+        string details,
+        uint256 timestamp
+    );
+    
+    event UpvoteAdded(
+        string indexed complaintId,
+        uint32 newCount,
         uint256 timestamp
     );
     
     /**
-     * @dev Register a new complaint on blockchain
+     * @dev Register a new user with location
+     * Full details in event, only hashes stored
      */
-    function registerComplaint(
-        string memory _complaintId,
-        string memory _category,
-        string memory _subcategory,
-        string memory _urgency,
-        string memory _descriptionHash,
-        string memory _attachmentHash,
-        address _submittedBy
-    ) public {
-        require(!complaintExists[_complaintId], "Complaint already exists");
-        require(bytes(_complaintId).length > 0, "Complaint ID cannot be empty");
+    function registerUser(
+        string calldata _userId,
+        string calldata _name,
+        string calldata _role,
+        bytes32 _emailHash,
+        bytes32 _aadhaarHash,
+        bytes32 _locationHash,
+        string calldata _pin,
+        string calldata _district,
+        string calldata _city,
+        string calldata _state,
+        string calldata _municipal
+    ) external {
+        bytes32 userIdHash = keccak256(bytes(_userId));
+        require(!userExists[userIdHash], "User already exists");
         
-        Complaint memory newComplaint = Complaint({
-            complaintId: _complaintId,
-            category: _category,
-            subcategory: _subcategory,
-            urgency: _urgency,
-            status: "open",
-            descriptionHash: _descriptionHash,
-            attachmentHash: _attachmentHash,
-            submittedBy: _submittedBy,
-            timestamp: block.timestamp,
-            lastUpdated: block.timestamp,
-            assignedTo: "",
-            resolutionDate: ""
+        users[userIdHash] = User({
+            emailHash: _emailHash,
+            aadhaarHash: _aadhaarHash,
+            locationHash: _locationHash,
+            registrationDate: uint64(block.timestamp),
+            isActive: true
         });
         
-        complaints[_complaintId] = newComplaint;
-        complaintIds.push(_complaintId);
-        complaintExists[_complaintId] = true;
+        userExists[userIdHash] = true;
+        totalUsers++;
+        
+        emit UserRegistered(
+            _userId,
+            _name,
+            _role,
+            _emailHash,
+            _aadhaarHash,
+            _locationHash,
+            block.timestamp
+        );
+        
+        // Emit location details separately
+        emit UserLocationStored(
+            _userId,
+            _pin,
+            _district,
+            _city,
+            _state,
+            _municipal,
+            block.timestamp
+        );
+    }
+    
+    /**
+     * @dev Register a new complaint with location
+     */
+    function registerComplaint(
+        string calldata _complaintId,
+        string calldata _complainantId,
+        string calldata _categoryId,
+        string calldata _subCategory,
+        string calldata _department,
+        uint8 _urgency,
+        bytes32 _descriptionHash,
+        bytes32 _attachmentHash,
+        bytes32 _locationHash,
+        bool _isPublic,
+        string calldata _pin,
+        string calldata _district,
+        string calldata _city,
+        string calldata _locality,
+        string calldata _state
+    ) external {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(!complaintExists[complaintIdHash], "Complaint already exists");
+        require(_urgency >= 1 && _urgency <= 4, "Invalid urgency");
+        
+        complaints[complaintIdHash] = Complaint({
+            complainantIdHash: keccak256(bytes(_complainantId)),
+            descriptionHash: _descriptionHash,
+            attachmentHash: _attachmentHash,
+            locationHash: _locationHash,
+            submissionDate: uint64(block.timestamp),
+            lastUpdated: uint64(block.timestamp),
+            upvoteCount: 0,
+            urgencyLevel: _urgency,
+            statusCode: 1, // REGISTERED
+            isPublic: _isPublic
+        });
+        
+        complaintExists[complaintIdHash] = true;
+        totalComplaints++;
         
         emit ComplaintRegistered(
             _complaintId,
-            _category,
+            _complainantId,
+            _categoryId,
+            _subCategory,
+            _department,
             _urgency,
-            _submittedBy,
+            _descriptionHash,
+            _attachmentHash,
+            _locationHash,
+            _isPublic,
+            block.timestamp
+        );
+        
+        // Emit location details separately
+        emit ComplaintLocationStored(
+            _complaintId,
+            _pin,
+            _district,
+            _city,
+            _locality,
+            _state,
             block.timestamp
         );
     }
@@ -106,115 +255,180 @@ contract GrievanceContract {
     /**
      * @dev Update complaint status
      */
-    function updateStatus(
-        string memory _complaintId,
-        string memory _newStatus
-    ) public {
-        require(complaintExists[_complaintId], "Complaint does not exist");
+    function updateComplaintStatus(
+        string calldata _complaintId,
+        uint8 _newStatus,
+        string calldata _statusName
+    ) external {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
+        require(_newStatus >= 1 && _newStatus <= 9, "Invalid status");
         
-        complaints[_complaintId].status = _newStatus;
-        complaints[_complaintId].lastUpdated = block.timestamp;
+        Complaint storage complaint = complaints[complaintIdHash];
+        uint8 oldStatus = complaint.statusCode;
         
-        emit ComplaintStatusUpdated(_complaintId, _newStatus, block.timestamp);
+        complaint.statusCode = _newStatus;
+        complaint.lastUpdated = uint64(block.timestamp);
+        
+        emit ComplaintStatusUpdated(
+            _complaintId,
+            oldStatus,
+            _newStatus,
+            _statusName,
+            block.timestamp
+        );
     }
     
     /**
-     * @dev Assign complaint to department/officer
+     * @dev Assign complaint
      */
     function assignComplaint(
-        string memory _complaintId,
-        string memory _assignedTo
-    ) public {
-        require(complaintExists[_complaintId], "Complaint does not exist");
+        string calldata _complaintId,
+        string calldata _assignedTo
+    ) external {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
         
-        complaints[_complaintId].assignedTo = _assignedTo;
-        complaints[_complaintId].status = "in_progress";
-        complaints[_complaintId].lastUpdated = block.timestamp;
+        Complaint storage complaint = complaints[complaintIdHash];
+        complaint.statusCode = 2; // UNDER_PROCESSING
+        complaint.lastUpdated = uint64(block.timestamp);
         
         emit ComplaintAssigned(_complaintId, _assignedTo, block.timestamp);
     }
     
     /**
-     * @dev Mark complaint as resolved
+     * @dev Resolve complaint
      */
-    function resolveComplaint(
-        string memory _complaintId,
-        string memory _resolutionDate
-    ) public {
-        require(complaintExists[_complaintId], "Complaint does not exist");
+    function resolveComplaint(string calldata _complaintId) external {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
         
-        complaints[_complaintId].status = "resolved";
-        complaints[_complaintId].resolutionDate = _resolutionDate;
-        complaints[_complaintId].lastUpdated = block.timestamp;
+        Complaint storage complaint = complaints[complaintIdHash];
+        complaint.statusCode = 5; // COMPLETED
+        complaint.lastUpdated = uint64(block.timestamp);
         
-        emit ComplaintResolved(_complaintId, _resolutionDate, block.timestamp);
+        emit ComplaintResolved(_complaintId, block.timestamp);
     }
     
     /**
-     * @dev Get complaint details
+     * @dev Update upvote count
      */
-    function getComplaint(string memory _complaintId) 
-        public 
-        view 
-        returns (
-            string memory complaintId,
-            string memory category,
-            string memory subcategory,
-            string memory urgency,
-            string memory status,
-            string memory descriptionHash,
-            string memory attachmentHash,
-            address submittedBy,
-            uint256 timestamp,
-            uint256 lastUpdated,
-            string memory assignedTo,
-            string memory resolutionDate
-        ) 
-    {
-        require(complaintExists[_complaintId], "Complaint does not exist");
+    function updateUpvoteCount(
+        string calldata _complaintId,
+        uint32 _newCount
+    ) external {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
         
-        Complaint memory c = complaints[_complaintId];
-        return (
-            c.complaintId,
-            c.category,
-            c.subcategory,
-            c.urgency,
-            c.status,
-            c.descriptionHash,
-            c.attachmentHash,
-            c.submittedBy,
-            c.timestamp,
-            c.lastUpdated,
-            c.assignedTo,
-            c.resolutionDate
+        complaints[complaintIdHash].upvoteCount = _newCount;
+        complaints[complaintIdHash].lastUpdated = uint64(block.timestamp);
+        
+        emit UpvoteAdded(_complaintId, _newCount, block.timestamp);
+    }
+    
+    /**
+     * @dev Create audit log (only emits event, doesn't store)
+     * This saves massive gas costs
+     */
+    function createAuditLog(
+        string calldata _logId,
+        string calldata _action,
+        string calldata _userId,
+        string calldata _complaintId,
+        string calldata _details
+    ) external {
+        totalAuditLogs++;
+        
+        emit AuditLogCreated(
+            _logId,
+            _action,
+            _userId,
+            _complaintId,
+            _details,
+            block.timestamp
         );
     }
     
     /**
-     * @dev Get total number of complaints
+     * @dev Get complaint by ID (returns struct)
      */
-    function getComplaintCount() public view returns (uint256) {
-        return complaintIds.length;
+    function getComplaint(string calldata _complaintId) 
+        external 
+        view 
+        returns (Complaint memory) 
+    {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
+        return complaints[complaintIdHash];
     }
     
     /**
-     * @dev Get complaint ID by index
+     * @dev Get user by ID (returns struct)
      */
-    function getComplaintIdByIndex(uint256 index) public view returns (string memory) {
-        require(index < complaintIds.length, "Index out of bounds");
-        return complaintIds[index];
+    function getUser(string calldata _userId) 
+        external 
+        view 
+        returns (User memory) 
+    {
+        bytes32 userIdHash = keccak256(bytes(_userId));
+        require(userExists[userIdHash], "User does not exist");
+        return users[userIdHash];
     }
     
     /**
-     * @dev Verify complaint hash (for audit purposes)
+     * @dev Get total counts
      */
-    function verifyComplaintHash(
-        string memory _complaintId,
-        string memory _descriptionHash
-    ) public view returns (bool) {
-        require(complaintExists[_complaintId], "Complaint does not exist");
+    function getCounts() 
+        external 
+        view 
+        returns (uint256 userCount, uint256 complaintCount, uint256 auditLogCount) 
+    {
+        return (totalUsers, totalComplaints, totalAuditLogs);
+    }
+    
+    /**
+     * @dev Verify complaint hash
+     */
+    function verifyHash(
+        string calldata _complaintId,
+        bytes32 _descriptionHash
+    ) external view returns (bool) {
+        bytes32 complaintIdHash = keccak256(bytes(_complaintId));
+        require(complaintExists[complaintIdHash], "Complaint does not exist");
         
-        return keccak256(bytes(complaints[_complaintId].descriptionHash)) == 
-               keccak256(bytes(_descriptionHash));
+        return complaints[complaintIdHash].descriptionHash == _descriptionHash;
+    }
+    
+    /**
+     * @dev Check if user exists
+     */
+    function checkUserExists(string calldata _userId) external view returns (bool) {
+        return userExists[keccak256(bytes(_userId))];
+    }
+    
+    /**
+     * @dev Check if complaint exists
+     */
+    function checkComplaintExists(string calldata _complaintId) external view returns (bool) {
+        return complaintExists[keccak256(bytes(_complaintId))];
     }
 }
+
+/**
+ * STATUS CODES:
+ * 1 = REGISTERED
+ * 2 = UNDER_PROCESSING
+ * 3 = FORWARDED
+ * 4 = ON_HOLD
+ * 5 = COMPLETED
+ * 6 = REJECTED
+ * 7 = ESCALATED_MUNICIPAL
+ * 8 = ESCALATED_STATE
+ * 9 = DELETED
+ * 
+ * URGENCY LEVELS:
+ * 1 = LOW
+ * 2 = MEDIUM
+ * 3 = HIGH
+ * 4 = CRITICAL
+ */
