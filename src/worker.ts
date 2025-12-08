@@ -10,7 +10,7 @@ import FormData from "form-data";
 import GrievanceContractArtifact from "../artifacts/contracts/GrievanceContract.sol/GrievanceContractOptimized.json";
 
 const Q_USERS = "user:registration:queue";
-const Q_COMPLAINTS = "complaint:registration:queue";
+const Q_COMPLAINTS = "complaint:blockchain:queue";
 
 const URGENCY_MAP: Record<string, number> = {
   LOW: 1,
@@ -231,13 +231,34 @@ class BlockchainWorker {
       ? ethers.keccak256(ethers.toUtf8Bytes(data.attachmentUrl))
       : ethers.ZeroHash;
 
-    const { pin, district, city, locality, state } = data.location;
+    const { pin, district, city, locality, state = "Jharkhand" } = data.location;
+
+    // Ensure all string parameters are not null/undefined
+    const safePin = pin || "";
+    const safeDistrict = district || "";
+    const safeCity = city || "";
+    const safeLocality = locality || "";
+    const safeState = state || "Jharkhand";
 
     const locHash = ethers.keccak256(
-      ethers.toUtf8Bytes(`${pin}|${district}|${city}|${locality}|${state}`)
+      ethers.toUtf8Bytes(`${safePin}|${safeDistrict}|${safeCity}|${safeLocality}|${safeState}`)
     );
 
     const urgency = URGENCY_MAP[data.urgency || "MEDIUM"];
+
+    console.log(`Registering complaint with params:`, {
+      id,
+      userId: data.userId,
+      categoryId: data.categoryId,
+      subCategory: data.subCategory,
+      department: data.assignedDepartment,
+      urgency,
+      pin: safePin,
+      district: safeDistrict,
+      city: safeCity,
+      locality: safeLocality,
+      state: safeState
+    });
 
     const fn = this.contract.getFunction("registerComplaint");
     const tx = await fn(
@@ -251,11 +272,11 @@ class BlockchainWorker {
       attachmentHash,
       locHash,
       data.isPublic,
-      pin,
-      district,
-      city,
-      locality,
-      state
+      safePin,
+      safeDistrict,
+      safeCity,
+      safeLocality,
+      safeState
     );
 
     const receipt = await tx.wait();
