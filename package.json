@@ -8,7 +8,8 @@
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts",
     "worker": "ts-node src/worker.ts",
-    "node": "hardhat node"
+    "node": "hardhat node",
+    "build": "bun build src/worker.ts --outdir dist --target bun --minify --sourcemap"
   },
   "keywords": [],
   "author": "",
