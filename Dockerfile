@@ -11,7 +11,10 @@ RUN bun install
 # Copy source code and prebuilt artifacts
 COPY . .
 
-# Build TypeScript worker (generates dist/). Artifacts are already present in repo.
+# Compile Solidity contracts (generates artifacts/) using fallback RPC
+RUN bun run compile
+
+# Build TypeScript worker (generates dist/)
 RUN bun run build
 
 # Production stage
