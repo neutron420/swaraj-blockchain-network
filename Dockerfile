@@ -1,6 +1,6 @@
 FROM oven/bun:1 AS builder
 WORKDIR /app
-COPY bun.lockb package.json ./
+COPY package.json ./
 RUN bun install
 COPY . .
 RUN bun run build
@@ -8,6 +8,6 @@ RUN bun run build
 FROM oven/bun:1-slim
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
-COPY package.json bun.lockb .env ./
+COPY package.json ./
 RUN bun install --production
 CMD ["bun", "dist/worker.js"]
