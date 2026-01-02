@@ -2,20 +2,20 @@
 
 A production-ready blockchain worker service that processes user registrations and complaints from Redis queues and permanently stores them on the blockchain with IPFS integration.
 
-## 📋 Overview
+##  Overview
 
 This worker service acts as a bridge between your application's Redis queue system and the blockchain. It automatically processes incoming user registrations and grievance complaints, uploads metadata to IPFS (InterPlanetary File System) via Pinata, and records transactions on the blockchain using smart contracts.
 
 ### Key Features
 
-- 🔄 **Automatic Queue Processing**: Continuously polls Redis queues for new user registrations and complaints
-- 🔗 **Blockchain Integration**: Stores data immutably on the blockchain using Ethereum smart contracts
-- 📦 **IPFS Storage**: Uploads complaint metadata to IPFS via Pinata for decentralized storage
-- 🔁 **Retry Mechanism**: Built-in retry logic for failed transactions with exponential backoff
-- 🚀 **Production Ready**: Dockerized and deployable to AWS ECS with health checks
-- ⚡ **High Performance**: Built with Bun runtime for optimal performance
+-  **Automatic Queue Processing**: Continuously polls Redis queues for new user registrations and complaints
+-  **Blockchain Integration**: Stores data immutably on the blockchain using Ethereum smart contracts
+-  **IPFS Storage**: Uploads complaint metadata to IPFS via Pinata for decentralized storage
+-  **Retry Mechanism**: Built-in retry logic for failed transactions with exponential backoff
+-  **Production Ready**: Dockerized and deployable to AWS ECS with health checks
+-  **High Performance**: Built with Bun runtime for optimal performance
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockchain
@@ -28,7 +28,12 @@ Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockcha
 3. **Worker Service**: Polls queues, processes data, uploads to IPFS, and writes to blockchain
 4. **Blockchain**: Permanent, immutable storage via smart contract transactions
 
-## 🚀 Quick Start
+##  Flow Diagram
+<img width="850" height="512" alt="image" src="https://github.com/user-attachments/assets/0aa0497d-3a70-4bf2-9144-d6672074b1b3" />
+<img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/62e9b5c4-8eb9-4eb8-90ae-3fdf795ac0eb" />
+<img width="216" height="233" alt="image" src="https://github.com/user-attachments/assets/a5ed5139-e705-49df-91a5-9618e6da6c6d" />
+
+##  Quick Start
 
 ### Prerequisites
 
@@ -78,7 +83,7 @@ bun run build
 bun dist/src/worker.js
 ```
 
-## 🐳 Docker Deployment
+##  Docker Deployment
 
 ### Build Docker Image
 
@@ -143,7 +148,7 @@ aws ecs update-service --cluster blockchain-worker-cluster --service blockchain-
 aws logs tail /ecs/blockchain-worker --follow --region us-east-1
 ```
 
-## 📊 Data Processing
+##  Data Processing
 
 ### User Registration Queue
 
@@ -209,14 +214,14 @@ bun test
 npx hardhat test
 ```
 
-## 🔐 Security Considerations
+##  Security Considerations
 
 - **Private Keys**: Never commit private keys to version control. Use AWS Secrets Manager or environment variables
 - **Redis Security**: Use secure Redis connections (TLS) in production
 - **IPFS**: Pinata JWT tokens should be stored securely
 - **Network**: Deploy worker in secure VPC with appropriate security groups
 
-## 📝 Environment Variables
+##  Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
@@ -227,7 +232,7 @@ npx hardhat test
 | `PINATA_JWT` | Pinata API JWT token | Yes |
 | `WORKER_POLL_INTERVAL` | Polling interval in milliseconds | No (default: 5000) |
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Worker not processing items
 
@@ -248,14 +253,10 @@ npx hardhat test
 - Check API rate limits
 - Verify network connectivity
 
-## 📄 License
-
-ISC
-
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please ensure all tests pass before submitting pull requests.
 
-## 📞 Support
+##  Support
 
 For issues and questions, please open an issue in the repository.
