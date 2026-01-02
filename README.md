@@ -32,7 +32,6 @@ Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockcha
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/0aa0497d-3a70-4bf2-9144-d6672074b1b3" />
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/62e9b5c4-8eb9-4eb8-90ae-3fdf795ac0eb" />
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/6ee1ce1a-ae74-4c9e-a3e5-a4283bcdcc3b" />
-<img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/e08e0355-7961-476b-92a6-ba0e5bc402b8" />
 
 
 
