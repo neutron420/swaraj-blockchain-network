@@ -29,9 +29,9 @@ Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockcha
 4. **Blockchain**: Permanent, immutable storage via smart contract transactions
 
 ##  Flow Diagram
-<img width="850" height="512" alt="image" src="https://github.com/user-attachments/assets/0aa0497d-3a70-4bf2-9144-d6672074b1b3" />
+<img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/0aa0497d-3a70-4bf2-9144-d6672074b1b3" />
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/62e9b5c4-8eb9-4eb8-90ae-3fdf795ac0eb" />
-<img width="266" height="189" alt="image" src="https://github.com/user-attachments/assets/0948590a-75c2-4538-9d16-5060470070ec" />
+<img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/0948590a-75c2-4538-9d16-5060470070ec" />
 
 
 
