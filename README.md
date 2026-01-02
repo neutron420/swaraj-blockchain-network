@@ -33,6 +33,9 @@ Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockcha
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/62e9b5c4-8eb9-4eb8-90ae-3fdf795ac0eb" />
 <img width="266" height="189" alt="image" src="https://github.com/user-attachments/assets/0948590a-75c2-4538-9d16-5060470070ec" />
 
+
+
+
 ##  Quick Start
 ### Prerequisites
 
