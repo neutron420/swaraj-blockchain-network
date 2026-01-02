@@ -31,10 +31,9 @@ Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockcha
 ##  Flow Diagram
 <img width="850" height="512" alt="image" src="https://github.com/user-attachments/assets/0aa0497d-3a70-4bf2-9144-d6672074b1b3" />
 <img width="850" height="643" alt="image" src="https://github.com/user-attachments/assets/62e9b5c4-8eb9-4eb8-90ae-3fdf795ac0eb" />
-<img width="216" height="233" alt="image" src="https://github.com/user-attachments/assets/a5ed5139-e705-49df-91a5-9618e6da6c6d" />
+<img width="266" height="189" alt="image" src="https://github.com/user-attachments/assets/0948590a-75c2-4538-9d16-5060470070ec" />
 
 ##  Quick Start
-
 ### Prerequisites
 
 - Node.js 18+ or Bun runtime
