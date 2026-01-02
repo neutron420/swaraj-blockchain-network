@@ -6,6 +6,7 @@
   "scripts": {
     "test": "hardhat test",
     "compile": "hardhat compile",
+    "build": "tsc",
     "deploy": "hardhat run scripts/deploy.ts",
     "worker": "ts-node src/worker.ts",
     "node": "hardhat node"
@@ -14,7 +15,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.6.0",
     "dotenv": "^17.2.3",
+    "ethers": "^6.9.0",
+    "form-data": "^4.0.0",
     "ioredis": "^5.8.2",
     "nft.storage": "^7.2.0",
     "uuid": "^10.0.0",
