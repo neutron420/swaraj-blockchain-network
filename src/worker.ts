@@ -10,7 +10,11 @@ import FormData from "form-data";
 import GrievanceContractArtifact from "../artifacts/contracts/GrievanceContract.sol/GrievanceContractOptimized.json";
 
 const Q_USERS = "user:registration:queue";
+<<<<<<< HEAD
 const Q_COMPLAINTS = "complaint:registration:queue";
+=======
+const Q_COMPLAINTS = "complaint:blockchain:queue";
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
 
 const URGENCY_MAP: Record<string, number> = {
   LOW: 1,
@@ -82,9 +86,12 @@ class BlockchainWorker {
     this.redis = process.env.REDIS_URL
       ? new Redis(process.env.REDIS_URL)
       : new Redis();
+<<<<<<< HEAD
     this.redis.on("error", (err) => {
       console.error("Redis connection error", err);
     });
+=======
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
 
     this.provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
     this.wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, this.provider);
@@ -174,6 +181,7 @@ class BlockchainWorker {
     console.log(`User JSON uploaded to IPFS → CID: ${cid}`);
 
     const emailHash = ethers.keccak256(ethers.toUtf8Bytes(data.email));
+<<<<<<< HEAD
     const aadhaarHash = ethers.keccak256(
       ethers.toUtf8Bytes(data.aadhaarId)
     );
@@ -182,6 +190,17 @@ class BlockchainWorker {
         `${data.location.pin}|${data.location.district}|${data.location.city}|${data.location.state}|${data.location.municipal}`
       )
     );
+=======
+    // Use placeholder if aadhaarId is missing
+    const aadhaarValue = data.aadhaarId || "AADHAAR_NOT_PROVIDED";
+    const aadhaarHash = ethers.keccak256(ethers.toUtf8Bytes(aadhaarValue));
+    
+    const locHash = ethers.keccak256(
+      ethers.toUtf8Bytes(
+        `${data.location.pin}|${data.location.district}|${data.location.city}|${data.location.state}|${data.location.municipal}`
+      )
+    );
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
 
     const tx = await this.contract.registerUser(
       data.id,
@@ -208,6 +227,20 @@ class BlockchainWorker {
     const data: ComplaintQueueData = JSON.parse(raw);
     const id = data.id || `COMP-${uuidv4()}`;
 
+<<<<<<< HEAD
+=======
+    // Validate required fields
+    if (!data.description || !data.userId || !data.categoryId || !data.location) {
+      console.error(`❌ Skipping invalid complaint ${id} - missing required fields:`, {
+        hasDescription: !!data.description,
+        hasUserId: !!data.userId,
+        hasCategoryId: !!data.categoryId,
+        hasLocation: !!data.location
+      });
+      return;
+    }
+
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
     try {
       await this.registerComplaint(id, data);
       console.log("Complaint registered:", id);
@@ -234,14 +267,45 @@ class BlockchainWorker {
       ? ethers.keccak256(ethers.toUtf8Bytes(data.attachmentUrl))
       : ethers.ZeroHash;
 
+<<<<<<< HEAD
     const { pin, district, city, locality, state } = data.location;
 
     const locHash = ethers.keccak256(
       ethers.toUtf8Bytes(`${pin}|${district}|${city}|${locality}|${state}`)
+=======
+    const { pin, district, city, locality, state = "Jharkhand" } = data.location;
+
+    // Ensure all string parameters are not null/undefined
+    const safePin = pin || "";
+    const safeDistrict = district || "";
+    const safeCity = city || "";
+    const safeLocality = locality || "";
+    const safeState = state || "Jharkhand";
+
+    const locHash = ethers.keccak256(
+      ethers.toUtf8Bytes(`${safePin}|${safeDistrict}|${safeCity}|${safeLocality}|${safeState}`)
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
     );
 
     const urgency = URGENCY_MAP[data.urgency || "MEDIUM"];
 
+<<<<<<< HEAD
+=======
+    console.log(`Registering complaint with params:`, {
+      id,
+      userId: data.userId,
+      categoryId: data.categoryId,
+      subCategory: data.subCategory,
+      department: data.assignedDepartment,
+      urgency,
+      pin: safePin,
+      district: safeDistrict,
+      city: safeCity,
+      locality: safeLocality,
+      state: safeState
+    });
+
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
     const fn = this.contract.getFunction("registerComplaint");
     const tx = await fn(
       id,
@@ -254,11 +318,19 @@ class BlockchainWorker {
       attachmentHash,
       locHash,
       data.isPublic,
+<<<<<<< HEAD
       pin,
       district,
       city,
       locality,
       state
+=======
+      safePin,
+      safeDistrict,
+      safeCity,
+      safeLocality,
+      safeState
+>>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
     );
 
     const receipt = await tx.wait();

@@ -1,57 +1,261 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# Grievance Blockchain Worker
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+A production-ready blockchain worker service that processes user registrations and complaints from Redis queues and permanently stores them on the blockchain with IPFS integration.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## 📋 Overview
 
-## Project Overview
+This worker service acts as a bridge between your application's Redis queue system and the blockchain. It automatically processes incoming user registrations and grievance complaints, uploads metadata to IPFS (InterPlanetary File System) via Pinata, and records transactions on the blockchain using smart contracts.
 
-This example project includes:
+### Key Features
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+- 🔄 **Automatic Queue Processing**: Continuously polls Redis queues for new user registrations and complaints
+- 🔗 **Blockchain Integration**: Stores data immutably on the blockchain using Ethereum smart contracts
+- 📦 **IPFS Storage**: Uploads complaint metadata to IPFS via Pinata for decentralized storage
+- 🔁 **Retry Mechanism**: Built-in retry logic for failed transactions with exponential backoff
+- 🚀 **Production Ready**: Dockerized and deployable to AWS ECS with health checks
+- ⚡ **High Performance**: Built with Bun runtime for optimal performance
 
-## Usage
+## 🏗️ Architecture
 
-### Running Tests
+```
+Application → Redis Queue → Blockchain Worker → IPFS (Pinata) → Blockchain
+```
 
-To run all the tests in the project, execute the following command:
+1. **Application Layer**: Your frontend/API pushes user registrations and complaints to Redis queues
+2. **Redis Queues**: Two queues are monitored:
+   - `user:registration:queue` - User registration data
+   - `complaint:blockchain:queue` - Grievance complaints
+3. **Worker Service**: Polls queues, processes data, uploads to IPFS, and writes to blockchain
+4. **Blockchain**: Permanent, immutable storage via smart contract transactions
 
-```shell
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ or Bun runtime
+- Redis instance (local or cloud)
+- Ethereum RPC endpoint
+- Pinata JWT token for IPFS uploads
+- Private key for blockchain transactions
+
+### Installation
+
+```bash
+# Install dependencies
+bun install
+# or
+npm install
+```
+
+### Configuration
+
+Create a `.env` file in the root directory:
+
+```env
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+
+# Blockchain Configuration
+BLOCKCHAIN_RPC_URL=https://your-rpc-endpoint
+PRIVATE_KEY=your_private_key_here
+CONTRACT_ADDRESS=0xYourContractAddress
+
+# IPFS Configuration
+PINATA_JWT=your_pinata_jwt_token
+
+# Worker Configuration
+WORKER_POLL_INTERVAL=5000
+```
+
+### Running Locally
+
+```bash
+# Development mode
+bun run worker
+
+# Production build
+bun run build
+bun dist/src/worker.js
+```
+
+## 🐳 Docker Deployment
+
+### Build Docker Image
+
+```bash
+docker build -t blockchain-worker .
+```
+
+### Run Container
+
+```bash
+docker run -d \
+  --env-file .env \
+  --name blockchain-worker \
+  blockchain-worker
+```
+
+## ☁️ AWS ECS Deployment
+
+This project includes complete AWS ECS deployment configuration for production use.
+
+### Prerequisites
+
+- AWS CLI configured with appropriate credentials
+- Docker installed locally
+- ECR repository created
+- Secrets stored in AWS Secrets Manager
+
+### Deployment Steps
+
+1. **Build and push Docker image to ECR**
+   ```bash
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+   docker build -t blockchain-worker .
+   docker tag blockchain-worker:latest <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/blockchain-worker:latest
+   docker push <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/blockchain-worker:latest
+   ```
+
+2. **Register task definition**
+   ```bash
+   aws ecs register-task-definition --cli-input-json file://aws-ecs-task-definition.json
+   ```
+
+3. **Create ECS service**
+   ```bash
+   aws ecs create-service --cluster blockchain-worker-cluster --service-name blockchain-worker-service --task-definition blockchain-worker --desired-count 1 --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}"
+   ```
+
+### Managing the Service
+
+**Start the worker:**
+```bash
+aws ecs update-service --cluster blockchain-worker-cluster --service blockchain-worker-service --desired-count 1 --region us-east-1
+```
+
+**Stop the worker:**
+```bash
+aws ecs update-service --cluster blockchain-worker-cluster --service blockchain-worker-service --desired-count 0 --region us-east-1
+```
+
+**View logs:**
+```bash
+aws logs tail /ecs/blockchain-worker --follow --region us-east-1
+```
+
+## 📊 Data Processing
+
+### User Registration Queue
+
+The worker processes user registrations with the following data structure:
+
+- User ID, email, phone number, name
+- Aadhaar ID
+- Location details (PIN, district, city, state, municipal)
+- Creation timestamp
+
+### Complaint Queue
+
+The worker processes complaints with:
+
+- Category and subcategory
+- Description and urgency level
+- Attachment URLs
+- Assigned department
+- Location information
+- User ID and submission date
+- Public/private flag
+
+### Processing Flow
+
+1. Worker polls Redis queues at configured intervals
+2. Retrieves data from queue (FIFO)
+3. Uploads metadata to IPFS via Pinata
+4. Constructs blockchain transaction
+5. Submits transaction to smart contract
+6. Handles retries on failure
+7. Logs success/failure for monitoring
+
+## 🔧 Development
+
+### Project Structure
+
+```
+blockchain-be/
+├── src/
+│   └── worker.ts          # Main worker implementation
+├── artifacts/             # Compiled smart contract ABIs
+├── contracts/             # Solidity smart contracts
+├── Dockerfile             # Docker configuration
+├── aws-ecs-task-definition.json  # AWS ECS task definition
+└── tsconfig.json          # TypeScript configuration
+```
+
+### Building
+
+```bash
+# Compile TypeScript
+bun run build
+# or
+tsc
+```
+
+### Testing
+
+```bash
+# Run Hardhat tests
+bun test
+# or
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+## 🔐 Security Considerations
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
-```
+- **Private Keys**: Never commit private keys to version control. Use AWS Secrets Manager or environment variables
+- **Redis Security**: Use secure Redis connections (TLS) in production
+- **IPFS**: Pinata JWT tokens should be stored securely
+- **Network**: Deploy worker in secure VPC with appropriate security groups
 
-### Make a deployment to Sepolia
+## 📝 Environment Variables
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `REDIS_URL` | Redis connection string | Yes |
+| `BLOCKCHAIN_RPC_URL` | Ethereum RPC endpoint | Yes |
+| `PRIVATE_KEY` | Wallet private key for transactions | Yes |
+| `CONTRACT_ADDRESS` | Deployed smart contract address | Yes |
+| `PINATA_JWT` | Pinata API JWT token | Yes |
+| `WORKER_POLL_INTERVAL` | Polling interval in milliseconds | No (default: 5000) |
 
-To run the deployment to a local chain:
+## 🐛 Troubleshooting
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
+### Worker not processing items
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+- Check Redis connection: Verify `REDIS_URL` is correct
+- Check queue names: Ensure queues match expected names
+- Check logs: Review CloudWatch logs for errors
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+### Blockchain transaction failures
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+- Verify RPC endpoint is accessible
+- Check private key has sufficient balance for gas
+- Verify contract address is correct
+- Check network congestion
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
+### IPFS upload failures
 
-After setting the variable, you can run the deployment with the Sepolia network:
+- Verify Pinata JWT token is valid
+- Check API rate limits
+- Verify network connectivity
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+## 📄 License
+
+ISC
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure all tests pass before submitting pull requests.
+
+## 📞 Support
+
+For issues and questions, please open an issue in the repository.
