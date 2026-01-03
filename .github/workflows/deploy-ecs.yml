@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'blockchain-be/**'
-      - '.github/workflows/deploy-ecs.yml'
   workflow_dispatch:
 
 env:
@@ -44,7 +41,6 @@ jobs:
         ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        cd blockchain-be
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
