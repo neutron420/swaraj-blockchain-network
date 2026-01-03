@@ -33,7 +33,10 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/artifacts ./artifacts
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/bun.lockb ./bun.lockb
+
+# Copy lock file - bun.lock is the source file that exists
+# bun install will use bun.lock or generate bun.lockb from it
+COPY --from=builder /app/bun.lock ./bun.lock
 
 # Install only production dependencies
 RUN bun install --production
