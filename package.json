@@ -9,12 +9,7 @@
     "build": "tsc",
     "deploy": "hardhat run scripts/deploy.ts",
     "worker": "ts-node src/worker.ts",
-<<<<<<< HEAD
     "node": "hardhat node"
-=======
-    "node": "hardhat node",
-    "build": "bun build src/worker.ts --outdir dist --target bun --minify --sourcemap"
->>>>>>> 201af549a41f42421c5bf324bd83ca059e5f4cb2
   },
   "keywords": [],
   "author": "",
