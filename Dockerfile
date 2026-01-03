@@ -11,8 +11,9 @@ RUN bun install
 # Copy source code
 COPY . .
 
-# Compile Solidity contracts (generates artifacts/)
-RUN bun run compile
+# Note: Solidity artifacts are already compiled and committed to the repo
+# Skipping Hardhat compile to avoid network/config issues in Docker
+# If you need to recompile, do it locally and commit the artifacts
 
 # Build TypeScript worker (generates dist/)
 RUN ./node_modules/.bin/tsc -p tsconfig.json
