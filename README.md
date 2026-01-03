@@ -143,6 +143,45 @@ aws ecs update-service --cluster blockchain-worker-cluster --service blockchain-
 aws logs tail /ecs/blockchain-worker --follow --region us-east-1
 ```
 
+## 🔄 CI/CD with GitHub Actions
+
+This project includes automated deployment via GitHub Actions. When you push code to the `main` branch, it will automatically:
+
+1. Build a new Docker image
+2. Push to AWS ECR
+3. Update the ECS service with the new image
+4. Wait for deployment to stabilize
+
+### Setup GitHub Secrets
+
+To enable automatic deployment, add these secrets to your GitHub repository:
+
+1. Go to **Settings** → **Secrets and variables** → **Actions**
+2. Add the following secrets:
+
+| Secret Name | Description |
+|-------------|-------------|
+| `AWS_ACCESS_KEY_ID` | Your AWS access key ID |
+| `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key |
+
+### How It Works
+
+- **Trigger**: Automatically runs on push to `main` branch (only when files in `blockchain-be/` change)
+- **Build**: Creates Docker image with commit SHA as tag
+- **Deploy**: Updates ECS task definition and service automatically
+- **Verify**: Waits for service to stabilize before completing
+
+### Manual Trigger
+
+You can also trigger deployment manually:
+1. Go to **Actions** tab in GitHub
+2. Select **Deploy to AWS ECS** workflow
+3. Click **Run workflow**
+
+### Workflow File
+
+The workflow is located at `.github/workflows/deploy-ecs.yml` and can be customized as needed.
+
 ## 📊 Data Processing
 
 ### User Registration Queue
